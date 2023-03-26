@@ -20,13 +20,13 @@ import java.util.List;
  * to start the server - the configs will get printed
  * to file. You can then edit the file.
  * Configs:
- *    port;int;{\\d*}
- *    tls;false;{true,false}
- *    certPath;path;{[^;]*}
- *    printInfo;true;{true,false}
- *    printVerbose;false;{true,false}
- *    printDebug;false;{true,false}
- *    printException;true;{true,false}
+ * port;int;{\\d*}
+ * tls;false;{true,false}
+ * certPath;path;{[^;]*}
+ * printInfo;true;{true,false}
+ * printVerbose;false;{true,false}
+ * printDebug;false;{true,false}
+ * printException;true;{true,false}
  */
 public class Server {
     protected static Logger logger = new Logger();
@@ -38,6 +38,8 @@ public class Server {
     private boolean printException = true;
     private int port = 8001;
     private boolean tls = false;
+    private String certPath = "";
+    private String password = "";
 
 
     //control
@@ -55,63 +57,58 @@ public class Server {
      */
     public Server(Constructor sessionConstructor) {
         this.sessionConstructor = sessionConstructor;
-        parseConfig();
+        parseConfigAndInsertMissing();
+
     }
 
-    private void parseConfig() {
-        ConfigParser configParser = new ConfigParser(true);
+    private void parseConfigAndInsertMissing() {
+        ConfigParser configParser = new ConfigParser("server.conf");
+        configParser.readFile();
 
         Configuration pd = configParser.getConfiguration("printDebug");
         if (pd != null && pd.getValue().equals("true")) printDebug = true;
         else if (pd != null && pd.getValue().equals("false")) printDebug = false;
-        else {
-            new Configuration("printDebug", Boolean.toString(printDebug), new String[]{"true", "false"});
-        }
+        else configParser.addConfiguration("printDebug", Boolean.toString(printDebug), "true", "false");
 
         Configuration pv = configParser.getConfiguration("printVerbose");
         if (pd != null && pd.getValue().equals("true")) printVerbose = true;
         else if (pd != null && pd.getValue().equals("false")) printVerbose = false;
-        else {
-            new Configuration("printVerbose", Boolean.toString(printVerbose), new String[]{"true", "false"});
-        }
+        else configParser.addConfiguration("printVerbose", Boolean.toString(printVerbose), "true", "false");
 
         Configuration pi = configParser.getConfiguration("printInfo");
         if (pi != null && pi.getValue().equals("true")) printInfo = true;
         else if (pi != null && pi.getValue().equals("false")) printInfo = false;
         else {
-            new Configuration("printInfo", Boolean.toString(printInfo), new String[]{"true", "false"});
+            configParser.addConfiguration("printInfo", Boolean.toString(printInfo), "true", "false");
         }
 
         Configuration pe = configParser.getConfiguration("printException");
         if (pe != null && pe.getValue().equals("true")) printException = true;
         else if (pe != null && pe.getValue().equals("false")) printException = false;
         else {
-            new Configuration("printException", Boolean.toString(printException), new String[]{"true", "false"});
+            configParser.addConfiguration("printException", Boolean.toString(printException), "true", "false");
         }
 
         Configuration port = configParser.getConfiguration("port");
         if (port != null) this.port = Integer.parseInt(port.getValue());
-        else {
-            new Configuration("port", Integer.toString(this.port), new String[]{"\\d*"});
-        }
+        else configParser.addConfiguration("port", Integer.toString(this.port), "\\d*");
 
         Configuration tlsConfig = configParser.getConfiguration("tls");
         if (tlsConfig != null && tlsConfig.getValue().equals("true")) tls = true;
         else if (tlsConfig != null && tlsConfig.getValue().equals("false")) tls = false;
-        else {
-            new Configuration("tls", Boolean.toString(tls), new String[]{"true", "false"});
-        }
+        else configParser.addConfiguration("tls", Boolean.toString(tls), "true", "false");
 
         if (tls) {
-            Configuration certPath = configParser.getConfiguration("certPath");
-            if (certPath == null) throw new IllegalStateException("TSL but no cert specified! Check config file!");
-            Configuration passwd = configParser.getConfiguration("password");
-            if (passwd == null) throw new IllegalStateException("TSL but no password specified! Check config file!");
             try {
+                Configuration certPath = configParser.getConfiguration("certPath");
+                if (certPath == null) throw new IllegalStateException("TSL but no cert specified! Check config file!");
+                Configuration passwd = configParser.getConfiguration("password");
+                if (passwd == null)
+                    throw new IllegalStateException("TSL but no password specified! Check config file!");
                 this.ssf = TLS13ServerSocketFactory.getTLS13ServerSocketFactory(certPath.getValue(), passwd.getValue());
             } catch (IllegalStateException ise) {
-                new Configuration("certPath", "", new String[]{"[^;]*"});
-                new Configuration("password", "", new String[]{"[^;]*"});
+                if (!configParser.containsKeys("certPath")) configParser.addConfiguration("certPath");
+                if (!configParser.containsKeys("password"))configParser.addConfiguration("password");
                 configParser.saveConfigs();
                 ise.printStackTrace();
                 System.exit(-1);
@@ -120,6 +117,8 @@ public class Server {
                 System.exit(-1);
             }
         }
+        if (!configParser.containsKeys("certPath")) configParser.addConfiguration("certPath");
+        if (!configParser.containsKeys("password")) configParser.addConfiguration("password");
         configParser.saveConfigs();
     }
 
@@ -128,11 +127,10 @@ public class Server {
     }
 
 
-
     Thread welcomeSocket = new Thread(() -> {
         this.welcomeActive = true;
         try {
-            try (ServerSocket welcomeSocket = ssf.createServerSocket(port)) {
+            try (ServerSocket welcomeSocket = new ServerSocket(port))/*ssf.createServerSocket(port))*/ {
                 logger.printInfo("Server: running on port " + port);
 
                 while (true) {
