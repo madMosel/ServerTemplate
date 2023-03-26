@@ -7,8 +7,7 @@ import at.mad_mosel.Logger.Logger;
 import javax.net.ServerSocketFactory;
 import java.lang.reflect.Constructor;
 import java.net.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Provides an WelcomeSocket running in own thread.
@@ -38,13 +37,13 @@ public class Server {
     private boolean printException = true;
     private int port = 8001;
     private boolean tls = false;
-    private String certPath = "";
+    private String p12file = "";
     private String password = "";
 
 
     //control
     private boolean welcomeActive = false;
-    private List<Session> sessions = new ArrayList<>();
+    private final List<SessionTemplate> sessions = new ArrayList<>();
 
     //action
     ServerSocketFactory ssf = ServerSocketFactory.getDefault();
@@ -59,6 +58,83 @@ public class Server {
         this.sessionConstructor = sessionConstructor;
         parseConfigAndInsertMissing();
 
+    }
+
+    public void start() {
+        welcomeSocket.start();
+    }
+
+
+    Thread welcomeSocket = new Thread(() -> {
+        this.welcomeActive = true;
+        try {
+            try (ServerSocket welcomeSocket = ssf.createServerSocket(port)) {
+                logger.printInfo("Server: running on port " + port);
+
+                while (true) {
+                    logger.printInfo("Server: waiting on connection... ");
+                    Socket connection = welcomeSocket.accept();
+                    logger.printInfo("Server: connection requested");
+                    SessionTemplate session = (SessionTemplate) sessionConstructor.newInstance();
+                    session.init(connection, this);
+                    sessions.add(session);
+                    logger.printInfo("Server: launched session " + session.id);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    });
+
+
+    public void shutdownWelcomeSocket() {
+        welcomeSocket.stop();
+        welcomeActive = false;
+    }
+
+    protected void removeSession(SessionTemplate session) {
+        synchronized (this.sessions) {
+            sessions.remove(session);
+        }
+    }
+
+    public LinkedList<Integer> getActiveSessionIds() {
+        LinkedList<Integer> sessionIds = new LinkedList<>();
+        for (SessionTemplate s : this.sessions) {
+            sessionIds.add(s.id);
+        }
+        return sessionIds;
+    }
+
+    /**
+     * Tries to kill the session of specified sessionId.
+     * @return true if session with sessionId EXISTS, false if not
+     */
+    public boolean killSession(int sessionId) {
+        SessionTemplate session = null;
+//        Timer timer = new Timer();
+//        timer.schedule(new TimerTask() {
+//            @Override
+//            public void run() {
+//                throw new IllegalStateException("Failed to cancel Session " + sessionId);
+//            }
+//        }, 3000);
+
+        synchronized (sessions) {
+            for (SessionTemplate s : this.sessions) {
+                if (s.id == sessionId) session = s;
+                break;
+            }
+        }
+        if (session == null) return false;
+
+        session.kill();
+//        timer.cancel();
+
+        synchronized (sessions) {
+            sessions.remove(session);
+        }
+        return true;
     }
 
     private void parseConfigAndInsertMissing() {
@@ -100,15 +176,21 @@ public class Server {
 
         if (tls) {
             try {
-                Configuration certPath = configParser.getConfiguration("certPath");
-                if (certPath == null) throw new IllegalStateException("TSL but no cert specified! Check config file!");
+                Configuration p12file = configParser.getConfiguration("p12file");
+                if (p12file == null)
+                    throw new IllegalStateException("TSL set true but p12file not specified in server.conf!");
+                else if (p12file.getValue() != null && !p12file.getValue().equals(""))
+                    this.p12file = p12file.getValue();
+                else throw new IllegalStateException("p12file path is missing in server.conf!");
                 Configuration passwd = configParser.getConfiguration("password");
                 if (passwd == null)
                     throw new IllegalStateException("TSL but no password specified! Check config file!");
-                this.ssf = TLS13ServerSocketFactory.getTLS13ServerSocketFactory(certPath.getValue(), passwd.getValue());
+                else if (passwd.getValue() != null && !passwd.getValue().equals("")) this.password = passwd.getValue();
+                else throw new IllegalStateException("passwd path is missing in server.conf!");
+                this.ssf = TLS13ServerSocketFactory.getTLS13ServerSocketFactory(this.p12file, this.password);
             } catch (IllegalStateException ise) {
-                if (!configParser.containsKeys("certPath")) configParser.addConfiguration("certPath");
-                if (!configParser.containsKeys("password"))configParser.addConfiguration("password");
+                if (!configParser.containsKeys("p12file")) configParser.addConfiguration("p12file");
+                if (!configParser.containsKeys("passwd")) configParser.addConfiguration("passwd");
                 configParser.saveConfigs();
                 ise.printStackTrace();
                 System.exit(-1);
@@ -120,37 +202,5 @@ public class Server {
         if (!configParser.containsKeys("certPath")) configParser.addConfiguration("certPath");
         if (!configParser.containsKeys("password")) configParser.addConfiguration("password");
         configParser.saveConfigs();
-    }
-
-    public void start() {
-        welcomeSocket.start();
-    }
-
-
-    Thread welcomeSocket = new Thread(() -> {
-        this.welcomeActive = true;
-        try {
-            try (ServerSocket welcomeSocket = new ServerSocket(port))/*ssf.createServerSocket(port))*/ {
-                logger.printInfo("Server: running on port " + port);
-
-                while (true) {
-                    logger.printInfo("Server: waiting on connection... ");
-                    Socket connection = welcomeSocket.accept();
-                    logger.printInfo("Server: connection requested");
-                    Session session = (Session) sessionConstructor.newInstance();
-                    session.init(connection);
-                    sessions.add(session);
-                    logger.printInfo("Server: launched session " + session.id);
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    });
-
-
-    public void shutdownWelcomeSocket() {
-        welcomeSocket.stop();
-        welcomeActive = false;
     }
 }
