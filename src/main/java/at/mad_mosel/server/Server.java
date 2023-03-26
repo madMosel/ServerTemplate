@@ -83,6 +83,7 @@ public class Server {
             }
         } catch (Exception e) {
             e.printStackTrace();
+            System.exit(-1);
         }
     });
 
@@ -107,18 +108,20 @@ public class Server {
     }
 
     /**
-     * Tries to kill the session of specified sessionId.
+     * Tries to kill the session of specified sessionId. If session
+     * exists ond killing is not successful after 3s the server will
+     * exit -1.
      * @return true if session with sessionId EXISTS, false if not
      */
     public boolean killSession(int sessionId) {
         SessionTemplate session = null;
-//        Timer timer = new Timer();
-//        timer.schedule(new TimerTask() {
-//            @Override
-//            public void run() {
-//                throw new IllegalStateException("Failed to cancel Session " + sessionId);
-//            }
-//        }, 3000);
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                throw new IllegalStateException("Failed to cancel Session " + sessionId);
+            }
+        }, 3000);
 
         synchronized (sessions) {
             for (SessionTemplate s : this.sessions) {
@@ -129,7 +132,7 @@ public class Server {
         if (session == null) return false;
 
         session.kill();
-//        timer.cancel();
+        timer.cancel();
 
         synchronized (sessions) {
             sessions.remove(session);

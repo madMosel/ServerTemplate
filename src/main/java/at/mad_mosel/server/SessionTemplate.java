@@ -2,6 +2,7 @@ package at.mad_mosel.server;
 
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -81,7 +82,10 @@ public abstract class SessionTemplate {
                     dataQueue.notify();
                 }
             }
-        } catch (Exception e) {
+        } catch (SocketException se) {
+            printVerbose("Receiver - socket closed");
+        }
+        catch (Exception e) {
             onError(e);
         }
         printInfo("Receiver shutting down...");
@@ -92,8 +96,9 @@ public abstract class SessionTemplate {
         try {
             dataOut.writeObject(data);
         } catch (IOException e) {
-            if (Server.logger.debug) Server.logger.printException(e.getMessage() + "while sending" + data);
             if (Server.logger.exception) e.printStackTrace();
+            printDebug("Failed on send. Trying kill()...");
+            kill();
         }
     }
 
@@ -107,8 +112,8 @@ public abstract class SessionTemplate {
         Server.logger.printInfo(msgPrefix + msg);
     }
 
-    private void printException(String msg) {
-        Server.logger.printException(msgPrefix + msg);
+    private void printDebug(String msg) {
+        Server.logger.printDebug(msgPrefix + msg);
     }
 
     private void printVerbose(String msg) {
@@ -118,19 +123,19 @@ public abstract class SessionTemplate {
 
     private void onError(Exception e) {
         if (Server.logger.debug) e.printStackTrace();
-        printException(e.getMessage());
+        printDebug(e.getMessage());
 
         try {
+            socket.close();
             processor.interrupt();
-            receiver.interrupt();
         } catch (Exception x) {
             x.printStackTrace();
-            printException(x.getMessage());
-            printException("This should really not happen! Killing app for safety!");
+            printDebug(x.getMessage());
+            printDebug("This should really not happen! Killing app for safety!");
             printInfo("There was some issue with terminating the processor thread.");
             System.exit(-1);
         }
-        printInfo("Killed Session.");
+        kill();
         server.removeSession(this);
     }
 
@@ -139,8 +144,11 @@ public abstract class SessionTemplate {
             socket.close();
             printVerbose("Socket successfully closed");
             processor.interrupt();
+            printInfo("Killed Session.");
         } catch (IOException e) {
-            System.out.println("Fuck this");
+            e.printStackTrace();
+            System.exit(-1);
         }
+        server.removeSession(this);
     }
 }
