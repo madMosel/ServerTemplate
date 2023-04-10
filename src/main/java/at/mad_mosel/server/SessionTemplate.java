@@ -32,6 +32,8 @@ public abstract class SessionTemplate {
         printInfo("Processing thread starting...");
         try {
             dataOut = new ObjectOutputStream(socket.getOutputStream());
+            userStartPoint();
+
             while (true) {
                 Serializable data;
                 synchronized (dataQueue) {
@@ -48,7 +50,7 @@ public abstract class SessionTemplate {
     };
 
     Runnable receiveData = () -> {
-      receive();
+        receive();
     };
 
     protected void init(Socket socket, Server server) throws IOException {
@@ -65,8 +67,18 @@ public abstract class SessionTemplate {
 
     /**
      * Server calls this when a new connection is established.
+     * At this point the Constructor has been called, but no
+     * sender or receiver Threads are created. If you need to
+     * do initial communication place the code in
      */
     public abstract void userInit();
+
+    /**
+     * This is called automatically after the OutputStream has been created.
+     * If you need to do initial work but require sending ability place your
+     * code in here.
+     */
+    public abstract void userStartPoint();
 
     private void receive() {
         printInfo("Receiver thread starting...");
@@ -82,18 +94,18 @@ public abstract class SessionTemplate {
                     dataQueue.notify();
                 }
             }
-        } catch (SocketException se) {
+        } catch (SocketException | EOFException se) {
             printVerbose("Receiver - socket closed");
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             onError(e);
         }
         printInfo("Receiver shutting down...");
     }
 
 
-    public void send(Serializable data) {
+    public synchronized void send(Serializable data) {
         try {
+            Server.logger.printVerbose("Sending " + data.getClass());
             dataOut.writeObject(data);
         } catch (IOException e) {
             if (Server.logger.exception) e.printStackTrace();
@@ -139,7 +151,7 @@ public abstract class SessionTemplate {
         server.removeSession(this);
     }
 
-    void kill() {
+    public void kill() {
         try {
             socket.close();
             printVerbose("Socket successfully closed");

@@ -57,7 +57,10 @@ public class Server {
     public Server(Constructor sessionConstructor) {
         this.sessionConstructor = sessionConstructor;
         parseConfigAndInsertMissing();
-
+        logger.debug = printDebug;
+        logger.verbose = printVerbose;
+        logger.info = printInfo;
+        logger.exception = printException;
     }
 
     public void start() {
