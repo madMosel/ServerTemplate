@@ -96,6 +96,8 @@ public abstract class SessionTemplate {
             }
         } catch (SocketException | EOFException se) {
             printVerbose("Receiver - socket closed");
+            this.kill();
+
         } catch (Exception e) {
             onError(e);
         }
@@ -119,6 +121,12 @@ public abstract class SessionTemplate {
      * This will be called when data arrives.
      */
     public abstract void processData(Serializable object) throws Exception;
+
+    /**
+     * Callback that is executed when Socket is closed
+     */
+    public abstract void onClose();
+
 
     private void printInfo(String msg) {
         Server.logger.printInfo(msgPrefix + msg);
@@ -156,6 +164,7 @@ public abstract class SessionTemplate {
             socket.close();
             printVerbose("Socket successfully closed");
             processor.interrupt();
+            onClose();
             printInfo("Killed Session.");
         } catch (IOException e) {
             e.printStackTrace();
