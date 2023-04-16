@@ -81,7 +81,7 @@ public abstract class SessionTemplate {
     public abstract void userStartPoint();
 
     private void receive() {
-        printInfo("Receiver thread starting...");
+        printDebug("Receiver thread starting...");
         try {
             ObjectInputStream dataIn = new ObjectInputStream(socket.getInputStream());
 
@@ -165,7 +165,7 @@ public abstract class SessionTemplate {
             printVerbose("Socket successfully closed");
             processor.interrupt();
             onClose();
-            printInfo("Killed Session.");
+            printInfo("killed.");
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(-1);
