@@ -61,6 +61,7 @@ public class Server {
         logger.verbose = printVerbose;
         logger.info = printInfo;
         logger.exception = printException;
+        logger.infoPrefix = "ServerTemplate";
     }
 
     public void start() {
@@ -72,12 +73,12 @@ public class Server {
         this.welcomeActive = true;
         try {
             try (ServerSocket welcomeSocket = ssf.createServerSocket(port)) {
-                logger.printInfo("Server: running on port " + port);
+                logger.printInfo(this.getClass(), "running on port " + port);
 
                 while (true) {
-                    logger.printInfo("Server: waiting on connection... ");
+                    logger.printVerbose(this.getClass(), "waiting on connection... ");
                     Socket connection = welcomeSocket.accept();
-                    logger.printInfo("Server: connection requested");
+                    logger.printVerbose(this.getClass(), "connection requested");
                     SessionTemplate session = (SessionTemplate) sessionConstructor.newInstance();
                     session.init(connection, this);
                     sessions.add(session);

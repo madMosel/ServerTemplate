@@ -29,7 +29,7 @@ public abstract class SessionTemplate {
 
 
     Runnable processesData = () -> {
-        printInfo("Processing thread starting...");
+        printDebug("Processing thread starting...");
         try {
             dataOut = new ObjectOutputStream(socket.getOutputStream());
             userStartPoint();
@@ -46,7 +46,7 @@ public abstract class SessionTemplate {
         } catch (Exception e) {
             onError(e);
         }
-        printInfo("Processor shutting down...");
+        printDebug("Processor shutting down...");
     };
 
     Runnable receiveData = () -> {
@@ -57,10 +57,10 @@ public abstract class SessionTemplate {
         this.server = server;
         this.socket = socket;
         userInit();
-        printInfo("Launching processor thread...");
+        printDebug("Launching processor thread...");
         processor = new Thread(processesData);
         processor.start();
-        printInfo("Processor up.");
+        printDebug("Processor up.");
         receiver = new Thread(receiveData);
         receiver.start();
     }
@@ -101,7 +101,7 @@ public abstract class SessionTemplate {
         } catch (Exception e) {
             onError(e);
         }
-        printInfo("Receiver shutting down...");
+        printDebug("Receiver shutting down...");
     }
 
 
@@ -129,21 +129,21 @@ public abstract class SessionTemplate {
 
 
     private void printInfo(String msg) {
-        Server.logger.printInfo(msgPrefix + msg);
+        Server.logger.printInfo(this.getClass(), msgPrefix + msg);
     }
 
     private void printDebug(String msg) {
-        Server.logger.printDebug(msgPrefix + msg);
+        Server.logger.printDebug(this.getClass(), msgPrefix + msg);
     }
 
     private void printVerbose(String msg) {
-        Server.logger.printVerbose(msgPrefix + msg);
+        Server.logger.printVerbose(this.getClass(), msgPrefix + msg);
     }
 
 
     private void onError(Exception e) {
-        if (Server.logger.debug) e.printStackTrace();
-        printDebug(e.getMessage());
+        if (Server.logger.exception) e.printStackTrace();
+        Server.logger.printException(this.getClass(), e.getMessage());
 
         try {
             socket.close();
